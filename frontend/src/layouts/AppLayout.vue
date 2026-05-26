@@ -1,31 +1,13 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import { on, off, emit, getSocket } from '../services/socket';
+import { usePresenceStore } from '../stores/presence';
 
 const auth = useAuthStore();
+const presence = usePresenceStore();
+const { onlineCount } = storeToRefs(presence);
 const router = useRouter();
-const onlineUsers = ref([]);
-
-function onPresenceUpdate(users) {
-  onlineUsers.value = Array.isArray(users) ? users : [];
-}
-
-function syncPresence() {
-  if (getSocket()?.connected) {
-    emit('presence:request');
-  }
-}
-
-onMounted(() => {
-  on('presence:update', onPresenceUpdate);
-  syncPresence();
-});
-
-onUnmounted(() => {
-  off('presence:update', onPresenceUpdate);
-});
 
 async function handleLogout() {
   await auth.logout();
@@ -41,8 +23,8 @@ async function handleLogout() {
         <router-link to="/">Dashboard</router-link>
       </nav>
       <div class="header-right">
-        <span class="presence hide-mobile" :title="`${onlineUsers.length} online`">
-          {{ onlineUsers.length }} online
+        <span class="presence hide-mobile" :title="`${onlineCount} online`">
+          {{ onlineCount }} online
         </span>
         <span class="user-name">{{ auth.user?.name }}</span>
         <button class="btn btn-ghost" @click="handleLogout">Logout</button>

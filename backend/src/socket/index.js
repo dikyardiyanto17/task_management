@@ -81,12 +81,13 @@ function initSocket(io) {
     addSocket(socket);
     socket.join(`user:${id}`);
 
-    sendPresenceTo(socket);
+    const pushPresence = () => sendPresenceTo(socket);
+    pushPresence();
+    setTimeout(pushPresence, 250);
+    setTimeout(pushPresence, 800);
     socket.broadcast.emit('presence:update', getPresenceList());
 
-    socket.on('presence:request', () => {
-      sendPresenceTo(socket);
-    });
+    socket.on('presence:request', pushPresence);
 
     socket.on('task:join', (taskId) => {
       socket.join(`task:${taskId}`);

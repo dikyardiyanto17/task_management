@@ -1,19 +1,77 @@
 import { io } from 'socket.io-client';
 import { SOCKET_IO_PATH } from '../utils/apiBase';
+import { usePresenceStore } from '../stores/presence';
 
 let socket = null;
-const listeners = new Map();
+let lastToken = null;
+let connectedAt = 0;
+let presenceRetryTimer = null;
 
-/**
- * Connect via the Vite dev server (same origin) so /socket.io is proxied to the API.
- * Set VITE_SOCKET_URL only when the API is on a different host in production.
- */
+function clearPresenceRetry() {
+  if (presenceRetryTimer) {
+    clearTimeout(presenceRetryTimer);
+    presenceRetryTimer = null;
+  }
+}
+
+function requestPresenceSync() {
+  if (socket?.connected) {
+    socket.emit('presence:request');
+  }
+}
+
+function schedulePresenceRetries() {
+  clearPresenceRetry();
+  [200, 600, 1500].forEach((ms) => {
+    setTimeout(() => requestPresenceSync(), ms);
+  });
+}
+
+function bindCoreHandlers(sock) {
+  const presence = usePresenceStore();
+
+  sock.off('presence:update');
+  sock.on('presence:update', (users) => {
+    const list = Array.isArray(users) ? users : [];
+    if (list.length === 0 && Date.now() - connectedAt < 1000) {
+      schedulePresenceRetries();
+      return;
+    }
+    presence.setOnline(list);
+  });
+
+  sock.off('connect');
+  sock.on('connect', () => {
+    connectedAt = Date.now();
+    console.info('[socket] connected', sock.id);
+    requestPresenceSync();
+    schedulePresenceRetries();
+  });
+
+  sock.off('disconnect');
+  sock.on('disconnect', (reason) => {
+    console.info('[socket] disconnect:', reason);
+    clearPresenceRetry();
+  });
+
+  sock.off('connect_error');
+  sock.on('connect_error', (err) => {
+    console.warn('[socket] connect_error:', err.message);
+  });
+}
+
 export function connectSocket(token) {
   if (!token) return null;
 
+  if (socket?.connected && lastToken === token) {
+    requestPresenceSync();
+    schedulePresenceRetries();
+    return socket;
+  }
+
+  lastToken = token;
+
   if (socket) {
-    socket.auth = { token };
-    if (socket.connected) return socket;
     socket.removeAllListeners();
     socket.disconnect();
     socket = null;
@@ -31,29 +89,20 @@ export function connectSocket(token) {
     timeout: 20000,
   });
 
-  socket.on('connect', () => {
-    console.info('[socket] connected', socket.id);
-    socket.emit('presence:request');
-  });
-
-  socket.on('connect_error', (err) => {
-    console.warn('[socket] connect_error:', err.message);
-  });
-
-  socket.on('disconnect', (reason) => {
-    console.info('[socket] disconnect:', reason);
-  });
+  bindCoreHandlers(socket);
 
   return socket;
 }
 
 export function disconnectSocket() {
+  clearPresenceRetry();
+  lastToken = null;
   if (socket) {
     socket.removeAllListeners();
     socket.disconnect();
     socket = null;
   }
-  listeners.clear();
+  usePresenceStore().reset();
 }
 
 export function getSocket() {
@@ -61,10 +110,7 @@ export function getSocket() {
 }
 
 export function on(event, handler) {
-  if (!socket) return;
-  socket.on(event, handler);
-  if (!listeners.has(event)) listeners.set(event, []);
-  listeners.get(event).push(handler);
+  socket?.on(event, handler);
 }
 
 export function off(event, handler) {

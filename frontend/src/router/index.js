@@ -19,9 +19,21 @@ const router = createRouter({
   routes,
 });
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore();
-  if (to.meta.requiresAuth && !auth.isAuthenticated) return '/login';
+
+  if (to.meta.requiresAuth) {
+    if (!auth.isAuthenticated) return '/login';
+    if (!auth.user) {
+      try {
+        await auth.fetchMe();
+      } catch {
+        await auth.logout();
+        return '/login';
+      }
+    }
+  }
+
   if (to.meta.guest && auth.isAuthenticated) return '/';
   return true;
 });

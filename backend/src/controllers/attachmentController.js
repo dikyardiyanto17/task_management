@@ -9,6 +9,7 @@ const {
   deleteStoredFile,
 } = require('../services/fileStorage');
 const { enqueue } = require('../services/queue');
+const { invalidateTaskCaches } = require('../services/cache');
 
 async function upload(req, res) {
   const task = await db.Task.findByPk(req.params.id);
@@ -36,10 +37,13 @@ async function upload(req, res) {
     thumbnail_path: thumbnailPath,
   });
 
-  const io = req.app.get('io');
-  if (io) io.to(`task:${task.id}`).emit('attachment:added', attachment);
+  await invalidateTaskCaches(task.id);
 
-  res.status(201).json(attachment);
+  const payload = attachment.toJSON();
+  const io = req.app.get('io');
+  if (io) io.to(`task:${task.id}`).emit('attachment:added', payload);
+
+  res.status(201).json(payload);
 }
 
 async function download(req, res) {
@@ -116,7 +120,9 @@ async function remove(req, res) {
       /* thumbnail optional */
     }
   }
+  const taskId = attachment.task_id;
   await attachment.destroy();
+  await invalidateTaskCaches(taskId);
   res.status(204).send();
 }
 

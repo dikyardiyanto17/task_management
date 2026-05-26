@@ -62,10 +62,24 @@ function onTyping({ userId, name, typing }) {
   typingUser.value = typing ? name : null;
 }
 
-function onAttachmentAdded(att) {
-  if (String(att.task_id) === String(taskId.value)) {
+function upsertAttachment(att) {
+  if (!att || String(att.task_id) !== String(taskId.value)) return;
+  const id = att.id;
+  if (id == null) return;
+  const idx = attachments.value.findIndex((a) => a.id === id);
+  if (idx >= 0) {
+    attachments.value[idx] = att;
+  } else {
     attachments.value.push(att);
   }
+}
+
+function onAttachmentUploaded(att) {
+  upsertAttachment(att);
+}
+
+function onAttachmentAdded(att) {
+  upsertAttachment(att);
 }
 
 async function downloadFile(id, fileName) {
@@ -114,7 +128,7 @@ onUnmounted(() => {
 
     <section class="section card">
       <h2>Attachments</h2>
-      <FileUpload :task-id="taskId" @uploaded="(a) => attachments.push(a)" />
+      <FileUpload :task-id="taskId" @uploaded="onAttachmentUploaded" />
       <ul class="attach-list">
         <li v-for="a in attachments" :key="a.id">
           <span>{{ a.file_name }} ({{ (a.file_size / 1024).toFixed(1) }} KB)</span>

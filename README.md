@@ -117,8 +117,29 @@ BACK_END_DEFAULT_URL=/task-management-api
 **Frontend** (`.env` — Vite requires the `VITE_` prefix):
 
 ```env
+# UI at https://residex.site/task-management/
+VITE_APP_BASE_PATH=/task-management
+
+# API at https://residex.site/task-management-api/api/...
 VITE_BACK_END_DEFAULT_URL=/task-management-api
 VITE_BACKEND_TARGET=http://localhost:3000
+```
+
+| Path | Purpose |
+|------|---------|
+| `/task-management/` | Vue app (Vite `base` / `VITE_APP_BASE_PATH`) |
+| `/task-management-api/` | Node API + Socket.IO |
+
+**Nginx (frontend static build):**
+
+```nginx
+location = /task-management {
+    return 301 /task-management/;
+}
+location /task-management/ {
+    alias /var/www/task-management/dist/;  # output of npm run build
+    try_files $uri $uri/ /task-management/index.html;
+}
 ```
 
 Restart both servers after changing env vars.

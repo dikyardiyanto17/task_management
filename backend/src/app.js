@@ -12,6 +12,7 @@ const {
   publicUrl,
   publicBasePath,
 } = require('./config/baseUrl');
+const { pingRedis, isRedisConfigured, isRedisReady } = require('./config/redis');
 
 function buildApiInfo() {
   const pub = basePath || publicBasePath;
@@ -59,13 +60,17 @@ if (!basePath) {
   app.get('/', (_req, res) => res.json(buildApiInfo()));
 }
 
-app.get(`${apiPrefix}/health`, (_req, res) =>
+app.get(`${apiPrefix}/health`, async (_req, res) => {
+  const redisUp = isRedisConfigured() ? await pingRedis() : null;
   res.json({
     status: 'ok',
     ...buildApiInfo(),
+    redis: isRedisConfigured()
+      ? { configured: true, connected: redisUp, ready: isRedisReady() }
+      : { configured: false },
     internal: { basePath: basePath || '/', apiPrefix, publicUrl },
-  })
-);
+  });
+});
 app.use(apiPrefix, routes);
 
 app.use((err, _req, res, _next) => {

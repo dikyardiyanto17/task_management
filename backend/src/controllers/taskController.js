@@ -2,6 +2,13 @@ const { Op } = require('sequelize');
 const db = require('../models');
 const { enqueue } = require('../services/queue');
 const { serializeComment } = require('../utils/serializeComment');
+const {
+  cacheGet,
+  cacheSet,
+  invalidateTaskCaches,
+  buildTaskListCacheKey,
+} = require('../services/cache');
+const { isRedisReady } = require('../config/redis');
 
 const SORT_FIELDS = ['title', 'status', 'priority', 'due_date', 'created_at'];
 
@@ -24,6 +31,12 @@ async function list(req, res) {
   const sortBy = SORT_FIELDS.includes(req.query.sortBy) ? req.query.sortBy : 'created_at';
   const order = req.query.sortOrder === 'asc' ? 'ASC' : 'DESC';
 
+  const cacheKey = buildTaskListCacheKey({ ...req.query, page, limit, sortBy, order });
+  const cached = await cacheGet(cacheKey);
+  if (cached) {
+    return res.json({ ...cached, meta: { ...cached.meta, cached: true } });
+  }
+
   const { rows, count } = await db.Task.findAndCountAll({
     where,
     include: [
@@ -35,10 +48,21 @@ async function list(req, res) {
     offset,
   });
 
-  res.json({ data: rows, meta: { page, limit, total: count, totalPages: Math.ceil(count / limit) } });
+  const response = {
+    data: rows,
+    meta: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
+  };
+  await cacheSet(cacheKey, response);
+  res.json({ ...response, meta: { ...response.meta, cached: false, redis: isRedisReady() } });
 }
 
 async function getOne(req, res) {
+  const detailKey = `tasks:detail:${req.params.id}`;
+  const cached = await cacheGet(detailKey);
+  if (cached) {
+    return res.json({ ...cached, cached: true });
+  }
+
   const task = await db.Task.findByPk(req.params.id, {
     include: [
       { model: db.User, as: 'assignee', attributes: ['id', 'name', 'email'] },
@@ -54,7 +78,8 @@ async function getOne(req, res) {
   if (!task) return res.status(404).json({ message: 'Task not found' });
   const json = task.toJSON();
   json.comments = (json.comments || []).map(serializeComment);
-  res.json(json);
+  await cacheSet(detailKey, json, 120);
+  res.json({ ...json, cached: false });
 }
 
 async function create(req, res) {
@@ -67,6 +92,7 @@ async function create(req, res) {
   }
   const io = req.app.get('io');
   if (io) io.emit('task:created', task);
+  await invalidateTaskCaches();
   res.status(201).json(task);
 }
 
@@ -83,6 +109,7 @@ async function update(req, res) {
 
   const io = req.app.get('io');
   if (io) io.emit('task:updated', task);
+  await invalidateTaskCaches(task.id);
   res.json(task);
 }
 
@@ -92,12 +119,14 @@ async function remove(req, res) {
   await task.destroy();
   const io = req.app.get('io');
   if (io) io.emit('task:deleted', { id: Number(req.params.id) });
+  await invalidateTaskCaches(req.params.id);
   res.status(204).send();
 }
 
 async function bulkUpdateStatus(req, res) {
   const { taskIds, status } = req.body;
   await db.Task.update({ status }, { where: { id: taskIds } });
+  await invalidateTaskCaches();
   enqueue('bulk_status_update', { taskIds, status });
   res.json({ message: 'Bulk update queued', count: taskIds.length });
 }

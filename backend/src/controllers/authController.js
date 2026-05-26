@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../models');
-
-const tokenBlacklist = new Set();
+const { blacklistToken } = require('../services/tokenBlacklist');
 
 function signToken(user) {
   return jwt.sign(
@@ -27,7 +26,7 @@ async function login(req, res) {
 async function logout(req, res) {
   const header = req.headers.authorization;
   if (header?.startsWith('Bearer ')) {
-    tokenBlacklist.add(header.slice(7));
+    await blacklistToken(header.slice(7));
   }
   res.json({ message: 'Logged out' });
 }
@@ -36,8 +35,4 @@ async function me(req, res) {
   res.json({ user: req.user });
 }
 
-function isTokenBlacklisted(token) {
-  return tokenBlacklist.has(token);
-}
-
-module.exports = { login, logout, me, isTokenBlacklisted };
+module.exports = { login, logout, me };

@@ -144,6 +144,26 @@ location /task-management/ {
 
 Restart both servers after changing env vars.
 
+## Redis (VPS only)
+
+Redis runs on your **VPS** (`127.0.0.1:6379` on the server). Your **local PC does not need Redis** — leave `REDIS_URL` unset in local `.env` and the API uses in-memory cache/queue instead.
+
+| Environment | `REDIS_URL` |
+|-------------|-------------|
+| Local dev | **omit** (commented out in `.env`) |
+| VPS (PM2) | `redis://127.0.0.1:6379` in `ecosystem.config.js` |
+
+| Feature | Redis key / queue |
+|---------|-------------------|
+| Task list cache | `tasks:list:{query}` |
+| Task detail cache | `tasks:detail:{id}` |
+| Logout token revoke | `auth:blacklist:{jwt}` |
+| Background jobs | Bull queue `task-jobs` |
+
+**On VPS:** install Redis once (`apt install redis-server`), set `REDIS_URL` in PM2 env, restart API.
+
+**Health:** `GET .../api/health` → on VPS `"redis": { "connected": true }`, locally `"configured": false`.
+
 ### Nginx (important)
 
 Your current config **strips** the `/task-management-api` prefix:

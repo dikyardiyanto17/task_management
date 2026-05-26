@@ -123,6 +123,59 @@ VITE_BACKEND_TARGET=http://localhost:3000
 
 Restart both servers after changing env vars.
 
+### Nginx (important)
+
+Your current config **strips** the `/task-management-api` prefix:
+
+```nginx
+# WRONG for this app (sends /api/... to Node, but Node expects /task-management-api/api/...)
+proxy_pass http://127.0.0.1:3000/;
+```
+
+**Option A — Keep `BACK_END_DEFAULT_URL=/task-management-api` (recommended)**  
+Forward the **full path** to Node:
+
+```nginx
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+location /task-management-api/ {
+    proxy_pass http://127.0.0.1:3000/task-management-api/;
+
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location = /task-management-api {
+    return 301 /task-management-api/;
+}
+```
+
+**Option B — Strip prefix in nginx (your current setup)**  
+Use `proxy_pass http://127.0.0.1:3000/;` and **do not** set `BACK_END_DEFAULT_URL` on the server.
+
+```env
+PUBLIC_BASE_PATH=/task-management-api
+```
+
+Node serves `/api/*`; nginx maps public `/task-management-api/api/*` → `/api/*`.  
+`GET /` on Node answers `https://residex.site/task-management-api/` (after redirect).
+
+Add nginx redirect for URLs without trailing slash:
+
+```nginx
+location = /task-management-api {
+    return 301 /task-management-api/;
+}
+```
+
 ## Environment variables
 
 See `backend/.env.example` and `frontend/.env.example` for all options.

@@ -1,4 +1,7 @@
-/** Mirrors backend BACK_END_DEFAULT_URL (use VITE_BACK_END_DEFAULT_URL in frontend .env). */
+/**
+ * VITE_BACK_END_DEFAULT_URL = path prefix only (e.g. /task-management-api)
+ * VITE_BACKEND_TARGET       = dev proxy origin only (vite.config.js), not used here
+ */
 export function parseBasePath(raw = '') {
   const value = (raw || '').trim();
   if (!value) return '';

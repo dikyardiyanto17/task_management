@@ -94,6 +94,35 @@ App: `http://localhost:5173` (if that port is busy, Vite may use `5174` — both
 
 Files are saved under `backend/uploads/{taskId}/{uuid}/`. Only an encrypted token is stored in `task_attachments.file_path` using AES-256-GCM and `PATH_ENCRYPTION_KEY` from `.env`.
 
+## Base URL (`BACK_END_DEFAULT_URL`)
+
+Mount the API under a path prefix (e.g. for nginx or PM2 behind `/task-management-api`).
+
+**Backend** (`.env`):
+
+```env
+# Full URL (recommended for production logs)
+BACK_END_DEFAULT_URL=http://localhost:3000/task-management-api
+
+# Or path only (uses PORT for the host in logs)
+BACK_END_DEFAULT_URL=/task-management-api
+```
+
+| Setting | Result |
+|---------|--------|
+| REST | `{base}/api/*` → e.g. `http://localhost:3000/task-management-api/api/tasks` |
+| Health | `{base}/api/health` |
+| Socket.IO | `{base}/socket.io` |
+
+**Frontend** (`.env` — Vite requires the `VITE_` prefix):
+
+```env
+VITE_BACK_END_DEFAULT_URL=/task-management-api
+VITE_BACKEND_TARGET=http://localhost:3000
+```
+
+Restart both servers after changing env vars.
+
 ## Environment variables
 
-See `backend/.env.example` for all options.
+See `backend/.env.example` and `frontend/.env.example` for all options.

@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const routes = require('./routes');
 const { UPLOAD_ROOT, ensureDir } = require('./services/fileStorage');
 const { corsOrigin } = require('./config/cors');
+const { basePath, apiPrefix, socketPath, publicUrl } = require('./config/baseUrl');
 
 ensureDir(UPLOAD_ROOT);
 
@@ -19,13 +20,29 @@ app.use(
 );
 app.use(express.json({ limit: '2mb' }));
 app.use(
-  '/api/auth/login',
+  `${apiPrefix}/auth/login`,
   rateLimit({ windowMs: 15 * 60 * 1000, max: 30, message: 'Too many login attempts' })
 );
-app.use('/api', rateLimit({ windowMs: 60 * 1000, max: 200 }));
+app.use(apiPrefix, rateLimit({ windowMs: 60 * 1000, max: 200 }));
 
-app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
-app.use('/api', routes);
+if (basePath) {
+  app.get(basePath, (_req, res) => {
+    res.json({
+      name: 'Task Management API',
+      status: 'ok',
+      api: `${apiPrefix}`,
+      health: `${apiPrefix}/health`,
+      socket: socketPath,
+      docs: 'Use REST under /api — e.g. POST /api/auth/login',
+    });
+  });
+  app.get(`${basePath}/`, (_req, res) => res.redirect(301, basePath));
+}
+
+app.get(`${apiPrefix}/health`, (_req, res) =>
+  res.json({ status: 'ok', basePath: basePath || '/', apiPrefix, publicUrl })
+);
+app.use(apiPrefix, routes);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

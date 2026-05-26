@@ -1,12 +1,13 @@
 <script setup>
 import { computed } from 'vue';
+import { API_BASE_URL } from '../utils/apiBase';
 
 const props = defineProps({
   attachmentId: { type: Number, required: true },
 });
 
 const streamUrl = computed(() => {
-  const base = import.meta.env.VITE_API_URL || '/api';
+  const base = import.meta.env.VITE_API_URL || API_BASE_URL;
   const token = localStorage.getItem('token');
   return `${base}/attachments/${props.attachmentId}/stream?token=${token}`;
 });

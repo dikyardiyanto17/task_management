@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { SOCKET_IO_PATH } from '../utils/apiBase';
 
 let socket = null;
 const listeners = new Map();
@@ -22,7 +23,7 @@ export function connectSocket(token) {
 
   socket = io(url, {
     auth: { token },
-    path: '/socket.io',
+    path: SOCKET_IO_PATH,
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: 8,

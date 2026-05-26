@@ -5,6 +5,7 @@ const app = require('./app');
 const db = require('./models');
 const { initSocket } = require('./socket');
 const { getAllowedOrigins } = require('./config/cors');
+const { socketPath, publicUrl, apiPrefix, basePath } = require('./config/baseUrl');
 
 const PORT = process.env.PORT || 3000;
 
@@ -12,6 +13,7 @@ async function start() {
   await db.sequelize.authenticate();
   const server = http.createServer(app);
   const io = new Server(server, {
+    path: socketPath,
     cors: {
       origin: getAllowedOrigins(),
       methods: ['GET', 'POST'],
@@ -24,7 +26,12 @@ async function start() {
   initSocket(io);
 
   server.listen(PORT, () => {
-    console.log(`API running on http://localhost:${PORT}`);
+    console.log(`Listening on port ${PORT}`);
+    if (basePath) {
+      console.log(`Base URL (BACK_END_DEFAULT_URL): ${publicUrl}`);
+    }
+    console.log(`REST mounted at: ${apiPrefix}`);
+    console.log(`Socket.IO path:    ${socketPath}`);
   });
 }
 

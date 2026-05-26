@@ -164,14 +164,7 @@ Redis runs on your **VPS** (`127.0.0.1:6379` on the server). Your **local PC doe
 
 **Health:** `GET .../api/health` → on VPS `"redis": { "connected": true }`, locally `"configured": false`.
 
-### Nginx (important)
-
-Your current config **strips** the `/task-management-api` prefix:
-
-```nginx
-# WRONG for this app (sends /api/... to Node, but Node expects /task-management-api/api/...)
-proxy_pass http://127.0.0.1:3000/;
-```
+### Nginx
 
 **Option A — Keep `BACK_END_DEFAULT_URL=/task-management-api` (recommended)**  
 Forward the **full path** to Node:

@@ -32,4 +32,22 @@ function parseBackEndDefaultUrl() {
 
 const { basePath, apiPrefix, socketPath, publicUrl } = parseBackEndDefaultUrl();
 
-module.exports = { basePath, apiPrefix, socketPath, publicUrl, parseBackEndDefaultUrl };
+/** Public URL path when nginx strips prefix (BACK_END_DEFAULT_URL unset). */
+function getPublicBasePath() {
+  if (basePath) return basePath;
+  const pub = (process.env.PUBLIC_BASE_PATH || '').trim();
+  if (!pub) return '';
+  return pub.startsWith('/') ? pub.replace(/\/$/, '') : `/${pub.replace(/\/$/, '')}`;
+}
+
+const publicBasePath = getPublicBasePath();
+
+module.exports = {
+  basePath,
+  apiPrefix,
+  socketPath,
+  publicUrl,
+  publicBasePath,
+  getPublicBasePath,
+  parseBackEndDefaultUrl,
+};

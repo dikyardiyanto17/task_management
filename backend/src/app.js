@@ -5,11 +5,35 @@ const rateLimit = require('express-rate-limit');
 const routes = require('./routes');
 const { UPLOAD_ROOT, ensureDir } = require('./services/fileStorage');
 const { corsOrigin } = require('./config/cors');
-const { basePath, apiPrefix, socketPath, publicUrl } = require('./config/baseUrl');
+const {
+  basePath,
+  apiPrefix,
+  socketPath,
+  publicUrl,
+  publicBasePath,
+} = require('./config/baseUrl');
+
+function buildApiInfo() {
+  const pub = basePath || publicBasePath;
+  const api = pub ? `${pub}/api` : apiPrefix;
+  const socket = pub ? `${pub}/socket.io` : socketPath;
+  return {
+    name: 'Task Management API',
+    status: 'ok',
+    publicBase: pub || '/',
+    api,
+    health: `${api}/health`,
+    socket,
+  };
+}
 
 ensureDir(UPLOAD_ROOT);
 
 const app = express();
+
+if (process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(
@@ -26,21 +50,21 @@ app.use(
 app.use(apiPrefix, rateLimit({ windowMs: 60 * 1000, max: 200 }));
 
 if (basePath) {
-  app.get(basePath, (_req, res) => {
-    res.json({
-      name: 'Task Management API',
-      status: 'ok',
-      api: `${apiPrefix}`,
-      health: `${apiPrefix}/health`,
-      socket: socketPath,
-      docs: 'Use REST under /api — e.g. POST /api/auth/login',
-    });
-  });
+  app.get(basePath, (_req, res) => res.json(buildApiInfo()));
   app.get(`${basePath}/`, (_req, res) => res.redirect(301, basePath));
 }
 
+// Nginx proxy_pass http://127.0.0.1:3000/ strips prefix → GET /task-management-api becomes GET /
+if (!basePath) {
+  app.get('/', (_req, res) => res.json(buildApiInfo()));
+}
+
 app.get(`${apiPrefix}/health`, (_req, res) =>
-  res.json({ status: 'ok', basePath: basePath || '/', apiPrefix, publicUrl })
+  res.json({
+    status: 'ok',
+    ...buildApiInfo(),
+    internal: { basePath: basePath || '/', apiPrefix, publicUrl },
+  })
 );
 app.use(apiPrefix, routes);
 

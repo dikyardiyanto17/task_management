@@ -1,19 +1,30 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import { on, getSocket } from '../services/socket';
+import { on, off, emit, getSocket } from '../services/socket';
 
 const auth = useAuthStore();
 const router = useRouter();
 const onlineUsers = ref([]);
 
-onMounted(() => {
-  if (getSocket()) {
-    on('presence:update', (users) => {
-      onlineUsers.value = users;
-    });
+function onPresenceUpdate(users) {
+  onlineUsers.value = Array.isArray(users) ? users : [];
+}
+
+function syncPresence() {
+  if (getSocket()?.connected) {
+    emit('presence:request');
   }
+}
+
+onMounted(() => {
+  on('presence:update', onPresenceUpdate);
+  syncPresence();
+});
+
+onUnmounted(() => {
+  off('presence:update', onPresenceUpdate);
 });
 
 async function handleLogout() {

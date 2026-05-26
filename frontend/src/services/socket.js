@@ -33,6 +33,7 @@ export function connectSocket(token) {
 
   socket.on('connect', () => {
     console.info('[socket] connected', socket.id);
+    socket.emit('presence:request');
   });
 
   socket.on('connect_error', (err) => {

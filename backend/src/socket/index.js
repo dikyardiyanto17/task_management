@@ -2,10 +2,46 @@ const jwt = require('jsonwebtoken');
 const db = require('../models');
 const { setSocketServer } = require('../services/queue');
 
-const onlineUsers = new Map();
+/** userId -> { name, socketIds: Set } */
+const onlineByUser = new Map();
 
 function toSocketUser(user) {
   return user.get ? user.get({ plain: true }) : user;
+}
+
+function getPresenceList() {
+  return Array.from(onlineByUser.entries()).map(([id, { name }]) => ({
+    id: Number(id),
+    name,
+  }));
+}
+
+function addSocket(socket) {
+  const { id, name } = socket.user;
+  const key = String(id);
+  if (!onlineByUser.has(key)) {
+    onlineByUser.set(key, { name, socketIds: new Set() });
+  }
+  onlineByUser.get(key).socketIds.add(socket.id);
+}
+
+function removeSocket(socket) {
+  const key = String(socket.user.id);
+  const entry = onlineByUser.get(key);
+  if (!entry) return;
+  entry.socketIds.delete(socket.id);
+  if (entry.socketIds.size === 0) {
+    onlineByUser.delete(key);
+  }
+}
+
+function broadcastPresence(io) {
+  const list = getPresenceList();
+  io.emit('presence:update', list);
+}
+
+function sendPresenceTo(socket) {
+  socket.emit('presence:update', getPresenceList());
 }
 
 function initSocket(io) {
@@ -39,12 +75,18 @@ function initSocket(io) {
   });
 
   io.on('connection', (socket) => {
-    const { id, name } = socket.user;
-    console.log(`[socket] connected user=${id}`);
+    const { id } = socket.user;
+    console.log(`[socket] connected user=${id} socket=${socket.id}`);
 
-    onlineUsers.set(id, { id, name });
+    addSocket(socket);
     socket.join(`user:${id}`);
-    io.emit('presence:update', Array.from(onlineUsers.values()));
+
+    sendPresenceTo(socket);
+    socket.broadcast.emit('presence:update', getPresenceList());
+
+    socket.on('presence:request', () => {
+      sendPresenceTo(socket);
+    });
 
     socket.on('task:join', (taskId) => {
       socket.join(`task:${taskId}`);
@@ -56,15 +98,15 @@ function initSocket(io) {
 
     socket.on('comment:typing', ({ taskId, typing }) => {
       socket.to(`task:${taskId}`).emit('comment:typing', {
-        userId: id,
-        name,
+        userId: socket.user.id,
+        name: socket.user.name,
         typing,
       });
     });
 
     socket.on('disconnect', (reason) => {
-      onlineUsers.delete(id);
-      io.emit('presence:update', Array.from(onlineUsers.values()));
+      removeSocket(socket);
+      socket.broadcast.emit('presence:update', getPresenceList());
       console.log(`[socket] disconnected user=${id} reason=${reason}`);
     });
   });
